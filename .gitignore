@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# Data & artifacts
+data/*
+!data/.gitkeep
+*.parquet
+*.pt
+*.pth
+*.png
+!docs/**/*.png
+
+# Runs & logs
+logs/*
+!logs/.gitkeep
+runs/
+wandb/
+
+# Tooling / OS
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.DS_Store

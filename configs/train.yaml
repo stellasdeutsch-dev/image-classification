@@ -1,0 +1,19 @@
+# Training (heavy — run on GPU via slurm/train.slurm)
+data_root: data/dataset
+image_size: 224
+val_frac: 0.15
+test_frac: 0.15
+seed: 42
+
+model: resnet18           # any timm model: resnet50, convnext_tiny, vit_small_patch16_224, ...
+pretrained: true
+epochs: 15
+batch_size: 32
+num_workers: 4
+lr: 0.0003
+weight_decay: 0.0001
+class_weighted_loss: true # inverse-frequency weighted loss for imbalance
+device: auto
+out_dir: data/run
+wandb: false
+wandb_project: image-classification

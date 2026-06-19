@@ -1,0 +1,14 @@
+# Prediction on the held-out test split (same split seed as training)
+data_root: data/dataset
+image_size: 224
+val_frac: 0.15
+test_frac: 0.15
+seed: 42
+
+model: resnet18
+checkpoint: data/run/best.pt
+out_dir: data/run
+predictions_path: data/run/predictions.parquet
+device: auto
+batch_size: 32
+num_workers: 4
