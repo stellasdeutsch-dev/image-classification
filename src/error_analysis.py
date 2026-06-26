@@ -47,7 +47,7 @@ def calibration_bins(confidence, correct, n_bins: int = 10):
     confidence = np.asarray(confidence, dtype=float)
     correct = np.asarray(correct, dtype=float)
     edges = np.linspace(0.0, 1.0, n_bins + 1)
-    bins, ece, n = [], 0.0, len(confidence)
+    bins, ece_sum, n_binned = [], 0.0, 0
     for b in range(n_bins):
         lo, hi = edges[b], edges[b + 1]
         mask = (confidence > lo) & (confidence <= hi) if b > 0 else (confidence >= lo) & (confidence <= hi)
@@ -57,7 +57,10 @@ def calibration_bins(confidence, correct, n_bins: int = 10):
             acc = float(correct[mask].mean())
             bins.append({"lo": round(lo, 2), "hi": round(hi, 2), "confidence": round(conf_mean, 4),
                          "accuracy": round(acc, 4), "count": cnt})
-            ece += (cnt / max(n, 1)) * abs(acc - conf_mean)
+            ece_sum += cnt * abs(acc - conf_mean)
+            n_binned += cnt
+    # weight by the samples actually binned (in-range), not the raw input length
+    ece = ece_sum / n_binned if n_binned else 0.0
     return bins, round(float(ece), 4)
 
 

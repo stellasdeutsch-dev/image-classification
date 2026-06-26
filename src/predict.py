@@ -25,7 +25,8 @@ def run(cfg: dict):
     from .schema import PREDICTION_COLUMNS, validate_predictions, validate_test_manifest
 
     device = select_device(cfg.get("device", "auto"))
-    ckpt = torch.load(cfg["checkpoint"], map_location=device)
+    # weights_only=True -> safe unpickler (no arbitrary code from an untrusted checkpoint)
+    ckpt = torch.load(cfg["checkpoint"], map_location=device, weights_only=True)
     class_names = ckpt.get("classes") or load_json(Path(cfg["out_dir"]) / "classes.json")
     model = build_model(ckpt.get("arch", cfg.get("model", "resnet18")), len(class_names), pretrained=False)
     model.load_state_dict(ckpt["model"])

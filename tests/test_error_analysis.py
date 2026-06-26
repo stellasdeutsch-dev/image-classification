@@ -44,3 +44,13 @@ def test_calibration_ece():
     bins, ece = calibration_bins(conf, correct, n_bins=10)
     assert 0.0 <= ece <= 1.0
     assert sum(b["count"] for b in bins) == 4
+
+
+def test_calibration_ece_weights_by_binned_count():
+    # the 1.5 confidence is out of [0,1] -> excluded from bins; ECE must divide by
+    # the binned count (2), not the raw input length (3).
+    conf = np.array([0.9, 0.9, 1.5])
+    correct = np.array([1, 1, 0])
+    bins, ece = calibration_bins(conf, correct, n_bins=10)
+    assert sum(b["count"] for b in bins) == 2
+    assert abs(ece - 0.1) < 1e-9         # |1.0 - 0.9| over the 2 binned samples

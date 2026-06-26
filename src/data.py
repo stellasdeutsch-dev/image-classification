@@ -94,15 +94,3 @@ def build_eval_loader(paths, image_size: int, batch_size: int, num_workers: int)
 
     return torch.utils.data.DataLoader(_EvalPathDataset(paths, image_size),
                                        batch_size=batch_size, num_workers=num_workers, shuffle=False)
-
-
-def class_weights(root: str | Path, class_names: list[str]):
-    """Inverse-frequency weights for imbalanced data (-> weighted loss)."""
-    import numpy as np
-
-    root = Path(root)
-    counts = np.array([sum(1 for p in (root / c).iterdir() if p.suffix.lower() in IMG_EXTS)
-                       for c in class_names], dtype=float)
-    counts = np.maximum(counts, 1.0)
-    w = counts.sum() / (len(counts) * counts)
-    return w
