@@ -26,10 +26,19 @@ def run(cfg: dict) -> dict:
     from .metrics import confusion_matrix, macro_f1
     from .model import build_model
 
+    import pandas as pd
+
     seed_everything(cfg.get("seed", 42))
     device = select_device(cfg.get("device", "auto"))
-    train_ds, val_ds, _, class_names = build_datasets(cfg)
-    save_json(class_names, Path(cfg["out_dir"]) / "classes.json")
+    train_ds, val_ds, test_ds, class_names = build_datasets(cfg)
+    out_dir = Path(cfg["out_dir"])
+    save_json(class_names, out_dir / "classes.json")
+    # Persist the held-out test split as an explicit manifest so predict scores the
+    # exact same files — an inspectable data contract, not a seed-based guess.
+    base_eval = test_ds.dataset
+    pd.DataFrame([{"path": base_eval.samples[i][0], "y_true": int(base_eval.samples[i][1])}
+                  for i in test_ds.indices], columns=["path", "y_true"]).to_parquet(
+        out_dir / "test_manifest.parquet", index=False)
 
     nw = cfg.get("num_workers", 4)
     train_dl = DataLoader(train_ds, batch_size=cfg.get("batch_size", 32), shuffle=True, num_workers=nw)
@@ -46,7 +55,14 @@ def run(cfg: dict) -> dict:
         w = counts.sum() / (len(counts) * counts)
         weights = torch.tensor(w, dtype=torch.float32, device=device)
     criterion = torch.nn.CrossEntropyLoss(weight=weights)
-    optim = torch.optim.AdamW(model.parameters(), lr=cfg.get("lr", 3e-4), weight_decay=cfg.get("weight_decay", 1e-4))
+    lr, wd = cfg.get("lr", 3e-4), cfg.get("weight_decay", 1e-4)
+    if cfg.get("optimizer", "adamw").lower() == "sgd":
+        optim = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=wd)
+    else:
+        optim = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=wd)
+    scheduler = None
+    if cfg.get("scheduler", "none").lower() == "cosine":
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optim, T_max=cfg.get("epochs", 15))
 
     run_w = None
     if cfg.get("wandb", False):
@@ -56,7 +72,7 @@ def run(cfg: dict) -> dict:
         except Exception as e:  # pragma: no cover
             log.warning("wandb disabled (%s)", e)
 
-    best_f1, best_path = -1.0, Path(cfg["out_dir"]) / "best.pt"
+    best_f1, best_path = -1.0, out_dir / "best.pt"
     for epoch in range(cfg.get("epochs", 15)):
         model.train()
         running = 0.0
@@ -83,10 +99,12 @@ def run(cfg: dict) -> dict:
         log.info("epoch %d  train_loss=%.4f  val_macroF1=%.4f", epoch, train_loss, val_f1)
         if run_w is not None:
             run_w.log({"epoch": epoch, "train_loss": train_loss, "val_macro_f1": val_f1})
-        if val_f1 >= best_f1:
+        if val_f1 > best_f1:                       # strict improvement -> unambiguous "best"
             best_f1 = val_f1
             torch.save({"model": model.state_dict(), "classes": class_names,
-                        "arch": cfg.get("model", "resnet18")}, best_path)
+                        "arch": cfg.get("model", "resnet18"), "epoch": epoch}, best_path)
+        if scheduler is not None:
+            scheduler.step()
 
     log.info("Best val macro-F1 = %.4f -> %s", best_f1, best_path)
     if run_w is not None:

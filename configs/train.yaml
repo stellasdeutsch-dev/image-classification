@@ -10,6 +10,8 @@ pretrained: true
 epochs: 15
 batch_size: 32
 num_workers: 4
+optimizer: adamw          # adamw | sgd
+scheduler: none           # none | cosine
 lr: 0.0003
 weight_decay: 0.0001
 class_weighted_loss: true # inverse-frequency weighted loss for imbalance

@@ -19,10 +19,10 @@ def run(cfg: dict):
     import numpy as np
     import pandas as pd
     import torch
-    from torch.utils.data import DataLoader
 
-    from .data import build_datasets
+    from .data import build_eval_loader
     from .model import build_model
+    from .schema import PREDICTION_COLUMNS, validate_predictions, validate_test_manifest
 
     device = select_device(cfg.get("device", "auto"))
     ckpt = torch.load(cfg["checkpoint"], map_location=device)
@@ -31,28 +31,27 @@ def run(cfg: dict):
     model.load_state_dict(ckpt["model"])
     model.to(device).eval()
 
-    _, _, test_ds, _ = build_datasets(cfg)
-    # recover file paths for the subset (ImageFolder samples are (path, label))
-    base = test_ds.dataset
-    paths = [base.samples[i][0] for i in test_ds.indices]
+    # Score the exact held-out files recorded at train time (explicit contract,
+    # not a re-derived seed split — so adding/removing an image can't leak).
+    man = validate_test_manifest(pd.read_parquet(cfg["test_manifest_path"]))
+    paths = man["path"].tolist()
+    y_true = man["y_true"].to_numpy()
 
-    dl = DataLoader(test_ds, batch_size=cfg.get("batch_size", 32), shuffle=False,
-                    num_workers=cfg.get("num_workers", 4))
-    preds, trues, confs = [], [], []
+    loader = build_eval_loader(paths, cfg.get("image_size", 224),
+                               cfg.get("batch_size", 32), cfg.get("num_workers", 4))
+    preds, confs = [], []
     with torch.no_grad():
-        for x, y in dl:
+        for x in loader:                       # shuffle=False -> order matches `paths`
             probs = torch.softmax(model(x.to(device)), dim=1)
             conf, pred = probs.max(dim=1)
             preds.append(pred.cpu().numpy())
             confs.append(conf.cpu().numpy())
-            trues.append(y.numpy())
 
-    df = pd.DataFrame({
-        "path": paths,
-        "y_true": np.concatenate(trues),
-        "y_pred": np.concatenate(preds),
-        "confidence": np.concatenate(confs),
-    })
+    df = pd.DataFrame({"path": paths, "y_true": y_true,
+                       "y_pred": np.concatenate(preds) if preds else np.array([], int),
+                       "confidence": np.concatenate(confs) if confs else np.array([], float)},
+                      columns=PREDICTION_COLUMNS)
+    validate_predictions(df)
     Path(cfg["predictions_path"]).parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(cfg["predictions_path"], index=False)
     log.info("Wrote %d predictions -> %s", len(df), cfg["predictions_path"])

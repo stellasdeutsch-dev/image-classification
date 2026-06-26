@@ -68,6 +68,26 @@ def build_datasets(cfg: dict):
     return train_ds, val_ds, test_ds, class_names
 
 
+def build_eval_loader(paths, image_size: int, batch_size: int, num_workers: int):
+    """A label-free, eval-transform DataLoader over an explicit list of image
+    paths (order preserved). Used by predict to score the persisted test split."""
+    import torch
+    from PIL import Image
+
+    tf = build_transforms(image_size, train=False)
+
+    class _Dataset(torch.utils.data.Dataset):
+        def __len__(self) -> int:
+            return len(paths)
+
+        def __getitem__(self, i: int):
+            with Image.open(paths[i]) as im:
+                return tf(im.convert("RGB"))
+
+    return torch.utils.data.DataLoader(_Dataset(), batch_size=batch_size,
+                                       num_workers=num_workers, shuffle=False)
+
+
 def class_weights(root: str | Path, class_names: list[str]):
     """Inverse-frequency weights for imbalanced data (-> weighted loss)."""
     import numpy as np

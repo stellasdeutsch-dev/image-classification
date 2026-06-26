@@ -13,6 +13,7 @@ from pathlib import Path
 from src.common import load_json, save_json, setup_logging
 from src.error_analysis import calibration_bins, most_confused_pairs, per_class_error_rate
 from src.metrics import classification_report, confusion_matrix
+from src.schema import validate_predictions
 
 log = logging.getLogger("imgcls")
 
@@ -21,7 +22,7 @@ def evaluate(predictions_path: str, classes_path: str, out_dir: str = "data/run"
     import numpy as np
     import pandas as pd
 
-    df = pd.read_parquet(predictions_path)
+    df = validate_predictions(pd.read_parquet(predictions_path))
     class_names = load_json(classes_path)
     n = len(class_names)
     y_true = df["y_true"].to_numpy()

@@ -128,6 +128,19 @@ Fill in after training on your dataset:
 
 ---
 
+## 🧩 Extending this
+
+Config-driven seams with an explicit, validated predictions contract (`src/schema.py`):
+
+| Want to… | Change | Why it's isolated |
+|---|---|---|
+| Swap the backbone | `configs/train.yaml:model` (any timm name) | `src/model.py` builds it; the checkpoint records the arch so predict rebuilds the right head. |
+| Change optimizer / schedule | `configs/train.yaml:optimizer` (`adamw`/`sgd`), `scheduler` (`none`/`cosine`) | wired in `train.run`; the rest of the loop is unchanged. |
+| Use your own dataset | point `configs/*.yaml:data_root` at a folder-per-class tree | `ImageFolder` + the persisted test-split manifest handle the rest. |
+| Add an error-analysis metric | add a pure function in `src/error_analysis.py` and surface it in `eval/evaluate.py` / the explorer | the analysis core consumes the predictions contract, nothing else. |
+
+The train→predict boundary is an **explicit artifact**: train writes `data/run/test_manifest.parquet` (the exact held-out files) and predict scores that, so the evaluation can never silently drift with a re-seeded split.
+
 ## 📜 License
 
 MIT — see [LICENSE](LICENSE).

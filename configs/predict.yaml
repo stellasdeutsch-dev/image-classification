@@ -8,6 +8,7 @@ seed: 42
 model: resnet18
 checkpoint: data/run/best.pt
 out_dir: data/run
+test_manifest_path: data/run/test_manifest.parquet   # written by train (the explicit split contract)
 predictions_path: data/run/predictions.parquet
 device: auto
 batch_size: 32
